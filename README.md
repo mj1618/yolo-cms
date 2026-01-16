@@ -33,3 +33,7 @@ npm run dev
 ## See how it was built
 
 Check out `./.specstory` for the prompts that were used to generate YOLO CMS.
+
+## Contributions
+
+Feel free to create issues and PRs, just note that I'll only be working on this when I'm at least 3 beers deep.
