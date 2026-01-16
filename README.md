@@ -4,6 +4,9 @@ Why pay for expensive+crappy CMS tools when you can just vibe-yeet stuff into pr
 
 Introducing YOLO CMS, the CMS that just does shit you tell it to without guardrails.
 
+![YOLO CMS Logo](./yolo-1.png)
+
+
 ## Installation
 
 1. Setup your convex backend
