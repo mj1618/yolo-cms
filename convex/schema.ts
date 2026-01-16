@@ -34,6 +34,7 @@ export default defineSchema({
 
   navbars: defineTable({
     key: v.string(), // e.g. "main"
+    template: v.optional(v.string()), // e.g. "nav" | "dark-nav"
     items: v.array(
       v.union(
         v.object({

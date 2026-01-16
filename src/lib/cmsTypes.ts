@@ -19,6 +19,7 @@ export type NavbarDoc = {
   _id: string;
   _creationTime: number;
   key: string;
+  template?: string;
   items: NavbarItem[];
   createdAt: number;
   updatedAt: number;

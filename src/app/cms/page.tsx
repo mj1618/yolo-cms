@@ -8,6 +8,7 @@ import { GripVertical } from "lucide-react";
 import type { NavbarDoc, NavbarItem, PageDoc } from "@/lib/cmsTypes";
 import { getTemplateLabel, type TemplateKey, templates } from "@/lib/templates";
 import { clearCmsSessionToken, readCmsSessionToken } from "@/lib/cmsSession";
+import { bumpCmsPreviewReload, subscribeCmsPreviewReload } from "@/lib/cmsPreviewReload";
 
 const api = anyApi;
 
@@ -69,6 +70,9 @@ function CmsHomeWithConvex() {
   const setNavbarItems = useMutation(api.navbar.setItems);
   const logout = useMutation(api.auth.logout);
 
+  const [previewTarget, setPreviewTarget] = React.useState<string>("home"); // "home" or pageId
+  const [previewReloadToken, setPreviewReloadToken] = React.useState<number>(() => Date.now());
+
   const [title, setTitle] = React.useState("");
   const [slug, setSlug] = React.useState("");
   const [template, setTemplate] = React.useState<TemplateKey>("basic");
@@ -81,6 +85,16 @@ function CmsHomeWithConvex() {
     for (const p of pages ?? []) m.set(p._id, p);
     return m;
   }, [pages]);
+
+  React.useEffect(() => {
+    return subscribeCmsPreviewReload((v) => setPreviewReloadToken(v));
+  }, []);
+
+  React.useEffect(() => {
+    // If the selected page no longer exists, fall back to "home".
+    if (previewTarget === "home") return;
+    if (!pagesById.has(previewTarget)) setPreviewTarget("home");
+  }, [pagesById, previewTarget]);
 
   const [navItems, setNavItems] = React.useState<UiNavbarItem[]>([]);
   const [navDirty, setNavDirty] = React.useState(false);
@@ -177,6 +191,7 @@ function CmsHomeWithConvex() {
         }),
       });
       setNavDirty(false);
+      bumpCmsPreviewReload();
     } catch (err) {
       setNavError(err instanceof Error ? err.message : "Failed to save navbar");
     } finally {
@@ -196,41 +211,55 @@ function CmsHomeWithConvex() {
     return () => window.clearTimeout(t);
   }, [navDirty, navItems, navbar, navIsSaving, onSaveNavbar]);
 
-  return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16 font-sans text-zinc-900 dark:bg-black dark:text-zinc-50">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-10">
-        <header className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">CMS</h1>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Create and edit pages.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link className="text-sm font-medium underline" href="/cms/users">
-              Users
-            </Link>
-            <Link className="text-sm font-medium underline" href="/">
-              Home
-            </Link>
-            <button
-              type="button"
-              className="text-sm font-medium underline"
-              onClick={async () => {
-                try {
-                  if (sessionToken) await logout({ sessionToken });
-                } finally {
-                  clearCmsSessionToken();
-                  window.location.href = "/cms/login";
-                }
-              }}
-            >
-              Sign out
-            </button>
-          </div>
-        </header>
+  const previewPath =
+    previewTarget === "home"
+      ? "/"
+      : pagesById.get(previewTarget)
+        ? `/${pagesById.get(previewTarget)!.slug}`
+        : "/";
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+  const iframeSrc = `${previewPath}${previewPath.includes("?") ? "&" : "?"}preview=1&__cms=${previewReloadToken}`;
+
+  return (
+    <div className="h-screen w-screen bg-zinc-50 font-sans text-zinc-900 dark:bg-black dark:text-zinc-50">
+      <div className="flex h-full w-full flex-col lg:flex-row">
+        <div className="min-h-0 w-full overflow-y-auto p-6 lg:w-1/2">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 py-10">
+            <header className="flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight">CMS</h1>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    Create and edit pages.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  
+                <Link className="text-sm font-medium underline" href="/">
+                    Home
+                  </Link>
+                  <Link className="text-sm font-medium underline" href="/cms/users">
+                    Users
+                  </Link>
+                  <button
+                    type="button"
+                    className="text-sm font-medium underline"
+                    onClick={async () => {
+                      try {
+                        if (sessionToken) await logout({ sessionToken });
+                      } finally {
+                        clearCmsSessionToken();
+                        window.location.href = "/cms/login";
+                      }
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-sm font-semibold">Pages</h2>
@@ -240,7 +269,9 @@ function CmsHomeWithConvex() {
             </div>
             <button
               type="button"
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => {
+                window.location.href = "/cms/templates";
+              }}
               className="inline-flex h-10 items-center justify-center rounded-full bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
             >
               Add Page
@@ -260,6 +291,13 @@ function CmsHomeWithConvex() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
+                  <button
+                    type="button"
+                    className="text-sm font-medium underline"
+                    onClick={() => setPreviewTarget(p._id)}
+                  >
+                    Preview
+                  </button>
                   <Link
                     className="text-sm font-medium underline"
                     href={`/cms/pages/${p._id}`}
@@ -271,6 +309,7 @@ function CmsHomeWithConvex() {
                     onClick={async () => {
                       if (!confirm(`Delete "${p.title}"?`)) return;
                       await remove({ sessionToken, id: p._id });
+                      bumpCmsPreviewReload();
                     }}
                   >
                     Delete
@@ -284,9 +323,9 @@ function CmsHomeWithConvex() {
               </div>
             ) : null}
           </div>
-        </section>
+            </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+            <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-sm font-semibold">Navbar</h2>
@@ -298,6 +337,15 @@ function CmsHomeWithConvex() {
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
                 {navbar === undefined ? "Loading…" : `${navItems.length} items`}
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/cms/navbar-templates";
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+              >
+                Change Template
+              </button>
               <button
                 type="button"
                 onClick={() => setIsAddNavModalOpen(true)}
@@ -441,7 +489,31 @@ function CmsHomeWithConvex() {
               <div className="text-xs text-zinc-600 dark:text-zinc-400">Auto-saves</div>
             </div>
           </div>
-        </section>
+            </section>
+          </div>
+        </div>
+
+        <aside className="min-h-0 w-full border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 lg:w-1/2 lg:border-l lg:border-t-0">
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+              <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">Site preview</div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                {previewTarget === "home"
+                  ? "Home"
+                  : pagesById.get(previewTarget)
+                    ? `/${pagesById.get(previewTarget)!.slug}`
+                    : ""}
+              </div>
+            </div>
+            <div className="min-h-0 flex-1">
+              <iframe
+                key={`${previewTarget}:${previewReloadToken}`}
+                src={iframeSrc}
+                className="h-full w-full bg-white"
+              />
+            </div>
+          </div>
+        </aside>
       </div>
 
       {isCreateModalOpen ? (

@@ -12,11 +12,6 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get(CMS_SESSION_COOKIE)?.value ?? "";
   const isLogin = pathname === "/cms/login";
 
-  // If already authenticated, keep users out of the login screen.
-  if (isLogin && token) {
-    return NextResponse.redirect(new URL("/cms", req.url));
-  }
-
   // Allow the login page through.
   if (isLogin) return NextResponse.next();
 

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { anyApi } from "convex/server";
 import { SiteNavbar } from "@/components/SiteNavbar";
 import { RichHtml } from "@/components/RichTextEditor";
 import type { PageDoc } from "@/lib/cmsTypes";
+import { readCmsSessionToken } from "@/lib/cmsSession";
 import { isTemplateKey, RenderTemplate, type TemplateKey } from "@/lib/templates";
 
 const api = anyApi;
@@ -28,6 +29,8 @@ function Shell({
 
 function SlugPageWithConvex({ slug }: { slug: string }) {
   const page = useQuery(api.pages.getBySlug, { slug }) as PageDoc | null | undefined;
+  const searchParams = useSearchParams();
+  const isPreview = searchParams.get("preview") === "1" && Boolean(readCmsSessionToken());
 
   if (page === undefined) {
     return (
@@ -57,7 +60,7 @@ function SlugPageWithConvex({ slug }: { slug: string }) {
     );
   }
 
-  if (!page.published) {
+  if (!page.published && !isPreview) {
     return (
       <Shell>
         <div className="mx-auto w-full max-w-3xl px-6 py-10 font-sans">
@@ -97,6 +100,13 @@ function SlugPageWithConvex({ slug }: { slug: string }) {
 
   return (
     <Shell>
+      {isPreview && !page.published ? (
+        <div className="mx-auto w-full max-w-5xl px-6 pt-4 font-sans">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Previewing draft content (visible only to CMS users).
+          </div>
+        </div>
+      ) : null}
       <RenderTemplate template={template} content={pageWithTemplate.content} fallback={fallback} />
     </Shell>
   );

@@ -44,6 +44,7 @@ export const setItems = mutationGeneric({
     if (!existing) {
       return await ctx.db.insert("navbars", {
         key,
+        template: "nav",
         items: args.items,
         createdAt: ts,
         updatedAt: ts,
@@ -55,3 +56,29 @@ export const setItems = mutationGeneric({
   },
 });
 
+export const setTemplate = mutationGeneric({
+  args: { sessionToken: v.string(), key: v.optional(v.string()), template: v.string() },
+  handler: async (ctx, args) => {
+    await requireSession(ctx.db, args.sessionToken);
+    const key = args.key ?? "main";
+    const ts = nowMs();
+
+    const existing = await ctx.db
+      .query("navbars")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+
+    if (!existing) {
+      return await ctx.db.insert("navbars", {
+        key,
+        template: args.template,
+        items: [],
+        createdAt: ts,
+        updatedAt: ts,
+      });
+    }
+
+    await ctx.db.patch(existing._id, { template: args.template, updatedAt: ts });
+    return existing._id;
+  },
+});

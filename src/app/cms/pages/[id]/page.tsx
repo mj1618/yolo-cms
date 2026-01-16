@@ -10,6 +10,7 @@ import type { PageDoc } from "@/lib/cmsTypes";
 import { coerceHomeContent, getTemplateLabel, type TemplateKey, templates } from "@/lib/templates";
 import type { TemplateField, TemplateSectionDefinition } from "@/lib/templates/types";
 import { clearCmsSessionToken, readCmsSessionToken } from "@/lib/cmsSession";
+import { bumpCmsPreviewReload } from "@/lib/cmsPreviewReload";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { MediaLibraryModal } from "@/components/MediaLibraryModal";
 
@@ -143,7 +144,9 @@ function CmsEditWithConvex({ id }: { id: string }) {
       }
 
       if (data.type === "cmsSelect") {
-        const payload = data.payload;
+        const payload = (data as { payload?: unknown }).payload as
+          | { sectionId?: unknown; fieldKey?: unknown; itemIndex?: unknown }
+          | undefined;
         const sectionId = typeof payload?.sectionId === "string" ? payload.sectionId : "";
         const fieldKey = typeof payload?.fieldKey === "string" ? payload.fieldKey : "";
         if (!sectionId || !fieldKey) return;
@@ -176,6 +179,7 @@ function CmsEditWithConvex({ id }: { id: string }) {
     try {
       const nextContent = template === "home" ? content : {};
       await update({ sessionToken, id, title, slug, published, body, template, content: nextContent });
+      bumpCmsPreviewReload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -435,6 +439,7 @@ function CmsEditWithConvex({ id }: { id: string }) {
                 onClick={async () => {
                   if (!confirm(`Delete "${page.title}"?`)) return;
                   await remove({ sessionToken, id });
+                  bumpCmsPreviewReload();
                   window.location.href = "/cms";
                 }}
               >
