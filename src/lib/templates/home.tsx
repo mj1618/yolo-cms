@@ -6,6 +6,7 @@ export type HomeHeroContent = {
   kicker: string;
   headline: string;
   subheadline: string;
+  imageUrl?: string;
   primaryCtaText: string;
   primaryCtaHref: string;
   secondaryCtaText: string;
@@ -89,6 +90,7 @@ const heroSection: TemplateSectionDefinition<HomeHeroContent> = {
     { key: "kicker", label: "Kicker", type: "string", placeholder: "New" },
     { key: "headline", label: "Headline", type: "string", placeholder: "Ship a beautiful home page — fully editable." },
     { key: "subheadline", label: "Subheadline", type: "text", placeholder: "A minimal CMS starter powered by Next.js + Convex." },
+    { key: "imageUrl", label: "Hero image", type: "image", placeholder: "/yolo-1.png or https://…" },
     { key: "primaryCtaText", label: "Primary CTA text", type: "string", placeholder: "Open CMS" },
     { key: "primaryCtaHref", label: "Primary CTA href", type: "url", placeholder: "/cms" },
     { key: "secondaryCtaText", label: "Secondary CTA text", type: "string", placeholder: "View pages" },
@@ -98,6 +100,7 @@ const heroSection: TemplateSectionDefinition<HomeHeroContent> = {
     kicker: "New",
     headline: "Ship a beautiful home page — fully editable.",
     subheadline: "This template is composed of sections, each with its own schema + editor UI.",
+    imageUrl: "/yolo-1.png",
     primaryCtaText: "Open CMS",
     primaryCtaHref: "/cms",
     secondaryCtaText: "View pages",
@@ -241,6 +244,7 @@ function HomeHeroSection({
   content: HomeHeroContent;
   preview: boolean;
 }) {
+  const heroImg = typeof content.imageUrl === "string" ? content.imageUrl.trim() : "";
   return (
     <header className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
@@ -255,8 +259,8 @@ function HomeHeroSection({
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-end">
-        <div className="lg:col-span-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+        <div className={heroImg ? "lg:col-span-7" : "lg:col-span-8"}>
           <h1 className="text-pretty text-4xl font-semibold tracking-tight sm:text-5xl">
             <CmsEditable enabled={preview} sectionId={id} fieldKey="headline" className="block">
               {content.headline}
@@ -268,6 +272,17 @@ function HomeHeroSection({
             </CmsEditable>
           </p>
         </div>
+        {heroImg ? (
+          <div className="lg:col-span-5">
+            <CmsEditable enabled={preview} sectionId={id} fieldKey="imageUrl" className="block">
+              <img
+                src={heroImg}
+                alt=""
+                className="w-full rounded-3xl border border-zinc-200 bg-white object-cover shadow-sm"
+              />
+            </CmsEditable>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-3 lg:col-span-4 lg:items-end">
           <Link
             href={content.primaryCtaHref || "/"}

@@ -1,4 +1,4 @@
-export type TemplateFieldType = "string" | "text" | "url" | "stringList";
+export type TemplateFieldType = "string" | "text" | "url" | "image" | "stringList";
 
 export type TemplateField = {
   key: string;

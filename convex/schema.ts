@@ -20,6 +20,18 @@ export default defineSchema({
     .index("by_published_updatedAt", ["published", "updatedAt"])
     .index("by_updatedAt", ["updatedAt"]),
 
+  images: defineTable({
+    storageId: v.id("_storage"),
+    originalFilename: v.optional(v.string()),
+    contentType: v.optional(v.string()),
+    size: v.optional(v.number()),
+    uploadedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_storageId", ["storageId"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_uploadedBy_createdAt", ["uploadedBy", "createdAt"]),
+
   navbars: defineTable({
     key: v.string(), // e.g. "main"
     items: v.array(

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { anyApi } from "convex/server";
 import { SiteNavbar } from "@/components/SiteNavbar";
+import { RichHtml } from "@/components/RichTextEditor";
 import type { PageDoc } from "@/lib/cmsTypes";
 import { isTemplateKey, RenderTemplate, type TemplateKey } from "@/lib/templates";
 
@@ -90,11 +91,7 @@ function SlugPageWithConvex({ slug }: { slug: string }) {
         </Link>
       </header>
 
-      <article className="prose prose-zinc mt-10 max-w-none">
-        <pre className="whitespace-pre-wrap rounded-2xl border border-zinc-200 bg-white p-4 text-sm leading-6">
-          {page.body || " "}
-        </pre>
-      </article>
+      <RichHtml html={page.body} className="prose prose-zinc mt-10 max-w-none" />
     </div>
   );
 

@@ -31,6 +31,7 @@ type LegacyHomeFlatContent = {
   heroKicker?: unknown;
   heroHeadline?: unknown;
   heroSubheadline?: unknown;
+  heroImageUrl?: unknown;
   primaryCtaText?: unknown;
   primaryCtaHref?: unknown;
   secondaryCtaText?: unknown;
@@ -124,6 +125,7 @@ export function coerceHomeContent(content: unknown): HomeTemplateContent {
           kicker: typeof c.heroKicker === "string" ? c.heroKicker : (defsByType.get("hero") as any).defaultContent.kicker,
           headline: typeof c.heroHeadline === "string" ? c.heroHeadline : (defsByType.get("hero") as any).defaultContent.headline,
           subheadline: typeof c.heroSubheadline === "string" ? c.heroSubheadline : (defsByType.get("hero") as any).defaultContent.subheadline,
+          imageUrl: typeof c.heroImageUrl === "string" ? c.heroImageUrl : (defsByType.get("hero") as any).defaultContent.imageUrl,
           primaryCtaText: typeof c.primaryCtaText === "string" ? c.primaryCtaText : (defsByType.get("hero") as any).defaultContent.primaryCtaText,
           primaryCtaHref: typeof c.primaryCtaHref === "string" ? c.primaryCtaHref : (defsByType.get("hero") as any).defaultContent.primaryCtaHref,
           secondaryCtaText: typeof c.secondaryCtaText === "string" ? c.secondaryCtaText : (defsByType.get("hero") as any).defaultContent.secondaryCtaText,

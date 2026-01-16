@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as authUtils from "../authUtils.js";
+import type * as images from "../images.js";
 import type * as navbar from "../navbar.js";
 import type * as pages from "../pages.js";
 
@@ -22,6 +23,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   authUtils: typeof authUtils;
+  images: typeof images;
   navbar: typeof navbar;
   pages: typeof pages;
 }>;

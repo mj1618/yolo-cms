@@ -10,6 +10,8 @@ import type { PageDoc } from "@/lib/cmsTypes";
 import { coerceHomeContent, getTemplateLabel, type TemplateKey, templates } from "@/lib/templates";
 import type { TemplateField, TemplateSectionDefinition } from "@/lib/templates/types";
 import { clearCmsSessionToken, readCmsSessionToken } from "@/lib/cmsSession";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { MediaLibraryModal } from "@/components/MediaLibraryModal";
 
 const api = anyApi;
 
@@ -66,6 +68,8 @@ function CmsEditWithConvex({ id }: { id: string }) {
   const update = useMutation(api.pages.update);
   const remove = useMutation(api.pages.remove);
   const logout = useMutation(api.auth.logout);
+  const generateImageUploadUrl = useMutation(api.images.generateUploadUrl);
+  const finalizeImageUpload = useMutation(api.images.finalizeUpload);
 
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
 
@@ -81,6 +85,8 @@ function CmsEditWithConvex({ id }: { id: string }) {
   const [openFields, setOpenFields] = React.useState<Record<string, boolean>>({});
   const [draggingSectionId, setDraggingSectionId] = React.useState<string | null>(null);
   const [isPreviewReady, setIsPreviewReady] = React.useState(false);
+  const [isUploadingTemplateImage, setIsUploadingTemplateImage] = React.useState(false);
+  const [templateImageUploadError, setTemplateImageUploadError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!page) return;
@@ -252,6 +258,44 @@ function CmsEditWithConvex({ id }: { id: string }) {
   function toggleField(sectionKey: string, fieldKey: string) {
     const k = `${sectionKey}.${fieldKey}`;
     setOpenFields((prev) => ({ ...prev, [k]: !prev[k] }));
+  }
+
+  async function uploadImage(file: File) {
+    setTemplateImageUploadError(null);
+    setIsUploadingTemplateImage(true);
+    try {
+      const uploadUrl = (await generateImageUploadUrl({ sessionToken })) as unknown as string;
+      if (!uploadUrl || typeof uploadUrl !== "string") throw new Error("Failed to get upload URL");
+
+      const resp = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!resp.ok) {
+        throw new Error(`Upload failed (${resp.status})`);
+      }
+      const json = (await resp.json()) as unknown as { storageId?: string };
+      const storageId = typeof json?.storageId === "string" ? json.storageId : "";
+      if (!storageId) throw new Error("Upload did not return a storageId");
+
+      const finalized = (await finalizeImageUpload({
+        sessionToken,
+        storageId: storageId as any,
+        originalFilename: file.name,
+        contentType: file.type,
+        size: file.size,
+      })) as unknown as { url?: string };
+      const url = typeof finalized?.url === "string" ? finalized.url : "";
+      if (!url) throw new Error("Finalize did not return a URL");
+      return url;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Image upload failed";
+      setTemplateImageUploadError(msg);
+      throw err;
+    } finally {
+      setIsUploadingTemplateImage(false);
+    }
   }
 
   // IMPORTANT: keep early returns AFTER hooks to avoid "change in order of hooks".
@@ -528,7 +572,11 @@ function CmsEditWithConvex({ id }: { id: string }) {
                                   : "0 items"
                                 : typeof v === "string"
                                   ? v.trim()
-                                    ? v.trim().slice(0, 60)
+                                    ? v
+                                        .trim()
+                                        .replaceAll(/<[^>]+>/g, "")
+                                        .replaceAll(/\s+/g, " ")
+                                        .slice(0, 60)
                                     : "—"
                                   : "—";
 
@@ -558,11 +606,21 @@ function CmsEditWithConvex({ id }: { id: string }) {
                                 {fieldIsOpen ? (
                                   <div id={fieldPanelId} className="mt-3">
                                     {f.type === "text" ? (
-                                      <textarea
+                                      <RichTextEditor
                                         value={typeof v === "string" ? v : ""}
-                                        onChange={(e) => setSectionField(e.target.value)}
+                                        onChange={setSectionField}
                                         placeholder={f.placeholder}
-                                        className="min-h-[120px] w-full rounded-2xl border border-zinc-200 bg-white p-3 text-sm leading-6 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-800 dark:bg-zinc-950"
+                                        minHeightClassName="min-h-[160px]"
+                                      />
+                                    ) : f.type === "image" ? (
+                                      <TemplateImageField
+                                        sessionToken={sessionToken}
+                                        value={typeof v === "string" ? v : ""}
+                                        placeholder={f.placeholder}
+                                        disabled={isUploadingTemplateImage}
+                                        error={templateImageUploadError}
+                                        onChange={setSectionField}
+                                        onUpload={uploadImage}
                                       />
                                     ) : f.type === "stringList" ? (
                                       <div className="flex flex-col gap-2">
@@ -610,14 +668,9 @@ function CmsEditWithConvex({ id }: { id: string }) {
           ) : (
             <label className="mt-6 flex flex-col gap-1">
               <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Body (plain text / markdown)
+                Body
               </span>
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                className="min-h-[320px] rounded-2xl border border-zinc-200 bg-white p-3 text-sm leading-6 outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-800 dark:bg-zinc-950"
-                placeholder="Write something…"
-              />
+              <RichTextEditor value={body} onChange={setBody} placeholder="Write something…" />
             </label>
           )}
             </form>
@@ -645,6 +698,100 @@ function CmsEditWithConvex({ id }: { id: string }) {
           </div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function TemplateImageField({
+  sessionToken,
+  value,
+  placeholder,
+  disabled,
+  error,
+  onChange,
+  onUpload,
+}: {
+  sessionToken: string;
+  value: string;
+  placeholder?: string;
+  disabled: boolean;
+  error: string | null;
+  onChange: (nextUrl: string) => void;
+  onUpload: (file: File) => Promise<string>;
+}) {
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const trimmed = value.trim();
+  const hasImage = Boolean(trimmed);
+  const [isLibraryOpen, setIsLibraryOpen] = React.useState(false);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {hasImage ? (
+        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={trimmed} alt="" className="h-48 w-full object-cover" />
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-6 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-black dark:text-zinc-400">
+          No image set.
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none ring-zinc-400 focus:ring-2 dark:border-zinc-800 dark:bg-zinc-950"
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsLibraryOpen(true)}
+          className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+        >
+          Browse…
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0] ?? null;
+            e.target.value = "";
+            if (!file) return;
+            const url = await onUpload(file);
+            onChange(url);
+          }}
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => fileInputRef.current?.click()}
+          className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:hover:bg-zinc-900"
+        >
+          {disabled ? "Uploading…" : "Upload"}
+        </button>
+        {hasImage ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-sm font-medium text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-zinc-900"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      {error ? <div className="text-xs text-red-600 dark:text-red-400">{error}</div> : null}
+
+      <MediaLibraryModal
+        sessionToken={sessionToken}
+        open={isLibraryOpen}
+        onClose={() => setIsLibraryOpen(false)}
+        onSelectUrl={(url) => onChange(url)}
+      />
     </div>
   );
 }
